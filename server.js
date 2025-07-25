@@ -24,11 +24,7 @@ const ESC_COMMANDS = {
     ALIGN_CENTER: '\x1B\x61\x01',
     ALIGN_LEFT: '\x1B\x61\x00',
     ALIGN_RIGHT: '\x1B\x61\x02',
-    FEED_3_LINES: '\x1B\x64\x03',        // Feed 3 lines before cut
-    CUT_FULL: '\x1D\x56\x00',            // Full cut (GS V 0)
     CUT_PARTIAL: '\x1D\x56\x01',         // Partial cut (GS V 1) 
-    CUT_FEED: '\x1D\x56\x41',            // Cut with feed (GS V A)
-    CUT_FEED_LINES: '\x1D\x56\x42\x03'   // Cut with 3 lines feed (GS V B 3)
 };
 
 // Global order state tracking
@@ -164,8 +160,7 @@ function createReceiptContent(orderData) {
 
     // 🔥 FIXED: Proper cutting sequence
     content += '\n\n\n';                    // Feed a few lines
-    content += ESC_COMMANDS.FEED_3_LINES;   // Feed 3 more lines before cut
-    content += ESC_COMMANDS.CUT_FEED_LINES; // Cut with feed - this should work better
+    content += ESC_COMMANDS.CUT_PARTIAL; // Cut with feed - this should work better
     
     return content;
 }

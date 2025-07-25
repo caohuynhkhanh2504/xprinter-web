@@ -521,18 +521,15 @@
         }
 
         function createOrder() {
-            // Lấy sản phẩm đã chọn
             const selectedProducts = Object.entries(products).filter(([id, product]) => product.quantity > 0);
             const logoCheck = document.getElementById('logo-check').checked;
             const qrCheck = document.getElementById('qr-check').checked;
 
-            // Kiểm tra có sản phẩm nào được chọn chưa
             if (selectedProducts.length === 0) {
                 alert('⚠️ Vui lòng chọn ít nhất một sản phẩm!');
                 return;
             }
 
-            // Chuẩn bị dữ liệu gửi lên server
             const orderData = {
                 products: selectedProducts.map(([id, product]) => ({
                     id,
@@ -546,34 +543,27 @@
                 createdAt: new Date().toISOString()
             };
 
-            // Giả lập gửi đơn hàng đến server (vì không có server thật)
-            try {
-                // Đánh dấu đã tạo order
-                hasCreatedOrder = true;
-                
-                // Cập nhật UI
-                updateOrderList();
-                document.getElementById('create-btn').disabled = true;
-                document.getElementById('print-btn').disabled = false;
-
-                let message = `✅ Đơn hàng đã được tạo thành công!\n\n`;
-                let grandTotal = 0;
-
-                orderData.products.forEach(product => {
-                    message += `🛒 ${product.name}: ${product.quantity} x ${product.price.toLocaleString('vi-VN')} = ${product.total.toLocaleString('vi-VN')} VND\n`;
-                    grandTotal += product.total;
-                });
-
-                message += `\n💰 Tổng cộng: ${grandTotal.toLocaleString('vi-VN')} VND`;
-
-                if (orderData.includeLogo) message += `\n🖼️ Đã bao gồm logo`;
-                if (orderData.includeQR) message += `\n🔳 Đã bao gồm mã QR`;
-
-                alert(message);
-            } catch (error) {
-                console.error('Lỗi khi tạo đơn hàng:', error);
-                alert('🚨 Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại.');
-            }
+            fetch('/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    hasCreatedOrder = true;
+                    updateOrderList();
+                    document.getElementById('create-btn').disabled = true;
+                    document.getElementById('print-btn').disabled = false;
+                    alert('✅ Đơn hàng đã được tạo thành công!');
+                } else {
+                    alert('❌ Lỗi tạo đơn hàng: ' + data.error);
+                }
+            })
+            .catch(err => {
+                console.error('Lỗi:', err);
+                alert('❌ Lỗi gửi đơn hàng đến server');
+            });
         }
 
         function printOrder() {

@@ -47,6 +47,7 @@ function formatCurrency(n) {
 }
 
 // === Create receipt content ===
+
 function createReceiptContent(orderData) {
     const now = new Date();
     const orderNumber = generateOrderNumber();
@@ -54,6 +55,22 @@ function createReceiptContent(orderData) {
 
     let content = '';
     content += ESC.RESET + ESC.ALIGN_CENTER;
+
+    // === CHÈN LOGO NẾU ĐƯỢC CHỌN ===
+    if (orderData.includeLogo) {
+        try {
+            if (fs.existsSync(CONFIG.LOGO_PATH)) {
+                const logoBuffer = fs.readFileSync(CONFIG.LOGO_PATH, 'latin1'); // logo ESC/POS nhị phân
+                content += logoBuffer;
+            } else {
+                console.warn('⚠️ logo.txt not found!');
+            }
+        } catch (err) {
+            console.warn('⚠️ Error reading logo.txt:', err.message);
+        }
+    }
+
+    // === PHẦN TIÊU ĐỀ HÓA ĐƠN ===
     content += '\nGO COFFEE\n543/1 Phan Van Tri, Go Vap, HCM\nPhone: 0388172131\n\n';
     content += 'SALES RECEIPT\n';
     content += `No: ${orderNumber}\nPrinted on: ${time}\n\n`;
@@ -85,7 +102,17 @@ function createReceiptContent(orderData) {
     content += 'Change'.padEnd(32) + '0'.padStart(10) + '\n\n';
 
     content += ESC.ALIGN_CENTER;
+
     content += 'Thank you! See you again!\nPowered by POS365.VN\n\n\n\n';
+
+if (orderData.includeQR && fs.existsSync(CONFIG.QR_PATH)) {
+    try {
+        const qrContent = fs.readFileSync(CONFIG.QR_PATH, 'latin1');
+        content += qrContent;
+    } catch (err) {
+        console.warn('⚠️ Failed to read QR file:', err.message);
+    }
+}
 
     content += "\n\n\n\n\n\n";
     content += ESC.CUT_PARTIAL;

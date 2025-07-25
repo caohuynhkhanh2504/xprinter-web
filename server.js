@@ -18,14 +18,21 @@ const CONFIG = {
     QR_PATH: "qr.txt"
 };
 
-// ESC/POS commands
+// ESC/POS commands - Cải thiện lệnh cắt
 const ESC_COMMANDS = {
     RESET: '\x1B\x40',
     ALIGN_CENTER: '\x1B\x61\x01',
     ALIGN_LEFT: '\x1B\x61\x00',
     ALIGN_RIGHT: '\x1B\x61\x02',
-    CUT: '\x1D\x56\x41'
+    FEED_3_LINES: '\x1B\x64\x03',        // Feed 3 lines before cut
+    CUT_FULL: '\x1D\x56\x00',            // Full cut (GS V 0)
+    CUT_PARTIAL: '\x1D\x56\x01',         // Partial cut (GS V 1) 
+    CUT_FEED: '\x1D\x56\x41',            // Cut with feed (GS V A)
+    CUT_FEED_LINES: '\x1D\x56\x42\x03'   // Cut with 3 lines feed (GS V B 3)
 };
+
+// Global order state tracking
+let hasCreatedOrder = false;
 
 // Generate order number
 function generateOrderNumber() {
@@ -53,7 +60,7 @@ function formatCurrency(amount) {
     return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-// Create receipt content
+// Create receipt content with proper cutting
 function createReceiptContent(orderData) {
     const now = new Date();
     const orderNumber = generateOrderNumber();
@@ -155,8 +162,10 @@ function createReceiptContent(orderData) {
     // //    content += fs.readFileSync(CONFIG.QR_PATH, 'utf8') + '\n';
     // }
 
-    // KHÔNG dùng \n sau CUT – phải là lệnh thô
-    content += ESC_COMMANDS.CUT;
+    // 🔥 FIXED: Proper cutting sequence
+    content += '\n\n\n';                    // Feed a few lines
+    content += ESC_COMMANDS.FEED_3_LINES;   // Feed 3 more lines before cut
+    content += ESC_COMMANDS.CUT_FEED_LINES; // Cut with feed - this should work better
     
     return content;
 }
@@ -180,8 +189,11 @@ app.post('/create-order', (req, res) => {
         // Write to file
         fs.writeFileSync(CONFIG.FILE_PATH, receiptContent, 'binary');
         
-        console.log('Receipt created successfully');
-        console.log('Order details:', {
+        // Set global state - order has been created
+        hasCreatedOrder = true;
+        
+        console.log('✅ Receipt created successfully');
+        console.log('📊 Order details:', {
             products: orderData.products.length,
             total: orderData.products.reduce((sum, p) => sum + p.total, 0),
             includeLogo: orderData.includeLogo,
@@ -191,16 +203,27 @@ app.post('/create-order', (req, res) => {
         res.json({ success: true, message: 'Receipt created successfully' });
         
     } catch (error) {
-        console.error('Error creating receipt:', error);
+        console.error('❌ Error creating receipt:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 app.post('/print-order', (req, res) => {
     try {
+        // Check if order was created first
+        if (!hasCreatedOrder) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Please create an order first before printing.' 
+            });
+        }
+        
         // Check if receipt file exists
         if (!fs.existsSync(CONFIG.FILE_PATH)) {
-            return res.status(400).json({ success: false, error: 'No receipt file found. Please create an order first.' });
+            return res.status(400).json({ 
+                success: false, 
+                error: 'No receipt file found. Please create an order first.' 
+            });
         }
         
         // Execute print command
@@ -208,23 +231,56 @@ app.post('/print-order', (req, res) => {
         
         exec(printCommand, (error, stdout, stderr) => {
             if (error) {
-                console.error('Print error:', error);
-                return res.status(500).json({ success: false, error: `Print failed: ${error.message}` });
+                console.error('❌ Print error:', error);
+                return res.status(500).json({ 
+                    success: false, 
+                    error: `Print failed: ${error.message}` 
+                });
             }
-            
+
             if (stderr) {
-                console.error('Print stderr:', stderr);
-                return res.status(500).json({ success: false, error: `Print error: ${stderr}` });
+                console.error('⚠️ Print stderr:', stderr);
+                return res.status(500).json({ 
+                    success: false, 
+                    error: `Print error: ${stderr}` 
+                });
             }
-            
-            console.log('Print command executed successfully:', stdout);
-            res.json({ success: true, message: 'Print command sent successfully' });
+
+            console.log('✅ Print command executed successfully:', stdout);
+
+            // 🔥 Reset state and clean up after printing
+            try {
+                // Delete receipt file
+                fs.unlinkSync(CONFIG.FILE_PATH);
+                console.log('🗑️ Receipt file deleted after printing');
+                
+                // Reset global state
+                hasCreatedOrder = false;
+                console.log('🔄 Order state reset - ready for new order');
+                
+            } catch (deleteErr) {
+                console.warn('⚠️ Failed to delete receipt file:', deleteErr.message);
+            }
+
+            res.json({ 
+                success: true, 
+                message: 'Order printed successfully, system reset for next order' 
+            });
         });
         
     } catch (error) {
-        console.error('Error printing receipt:', error);
+        console.error('❌ Error printing receipt:', error);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// Check order status endpoint
+app.get('/order-status', (req, res) => {
+    res.json({
+        hasCreatedOrder: hasCreatedOrder,
+        receiptFileExists: fs.existsSync(CONFIG.FILE_PATH),
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Health check endpoint
@@ -232,7 +288,8 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        printer: CONFIG.PRINTER_NAME
+        printer: CONFIG.PRINTER_NAME,
+        hasCreatedOrder: hasCreatedOrder
     });
 });
 
@@ -247,6 +304,19 @@ app.get('/receipt', (req, res) => {
         }
     } catch (error) {
         res.status(500).send('Error reading receipt file');
+    }
+});
+
+// Reset system endpoint (for debugging)
+app.post('/reset', (req, res) => {
+    try {
+        hasCreatedOrder = false;
+        if (fs.existsSync(CONFIG.FILE_PATH)) {
+            fs.unlinkSync(CONFIG.FILE_PATH);
+        }
+        res.json({ success: true, message: 'System reset successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -268,10 +338,21 @@ app.listen(PORT, '0.0.0.0', () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down POS System Server...');
+    // Clean up on shutdown
+    hasCreatedOrder = false;
+    if (fs.existsSync(CONFIG.FILE_PATH)) {
+        try {
+            fs.unlinkSync(CONFIG.FILE_PATH);
+            console.log('🗑️ Cleaned up receipt file on shutdown');
+        } catch (error) {
+            console.warn('⚠️ Failed to clean up receipt file:', error.message);
+        }
+    }
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
     console.log('\n🛑 POS System Server terminated');
+    hasCreatedOrder = false;
     process.exit(0);
 });

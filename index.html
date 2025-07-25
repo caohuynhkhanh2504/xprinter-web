@@ -196,6 +196,13 @@
             box-shadow: 0 5px 15px rgba(142, 68, 173, 0.4);
         }
 
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
         .order-list {
             background: white;
             border-radius: 10px;
@@ -273,6 +280,14 @@
             color: #7f8c8d;
             font-style: italic;
             margin-top: 50px;
+        }
+
+        .waiting-order {
+            text-align: center;
+            color: #f39c12;
+            font-style: italic;
+            margin-top: 50px;
+            font-weight: bold;
         }
 
         @media (max-width: 768px) {
@@ -391,8 +406,8 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button class="btn btn-create" onclick="createOrder()">Create Order</button>
-                    <button class="btn btn-print" onclick="printOrder()">Print Order</button>
+                    <button class="btn btn-create" id="create-btn" onclick="createOrder()">Create Order</button>
+                    <button class="btn btn-print" id="print-btn" onclick="printOrder()" disabled>Print Order</button>
                 </div>
             </div>
         </div>
@@ -401,8 +416,8 @@
         <div class="order-section">
             <h2>📋 Current Order</h2>
             <div class="order-list" id="order-list">
-                <div class="empty-order" id="empty-message">
-                    No products selected yet
+                <div class="waiting-order" id="waiting-message">
+                    Please select products and click "Create Order" to see your order
                 </div>
             </div>
             <div class="total" id="total-section" style="display: none;">
@@ -422,17 +437,25 @@
             lavie: { name: 'Lavie', price: 5000, quantity: 0 }
         };
 
+        let hasCreatedOrder = false;
+
         function increaseQuantity(productId) {
             products[productId].quantity++;
             updateDisplay(productId);
-            updateOrderList();
+            // Chỉ cập nhật order list nếu đã create order
+            if (hasCreatedOrder) {
+                updateOrderList();
+            }
         }
 
         function decreaseQuantity(productId) {
             if (products[productId].quantity > 0) {
                 products[productId].quantity--;
                 updateDisplay(productId);
-                updateOrderList();
+                // Chỉ cập nhật order list nếu đã create order
+                if (hasCreatedOrder) {
+                    updateOrderList();
+                }
             }
         }
 
@@ -442,9 +465,7 @@
 
         function updateOrderList() {
             const orderList = document.getElementById('order-list');
-            const emptyMessage = document.getElementById('empty-message');
             const totalSection = document.getElementById('total-section');
-            const totalAmount = document.getElementById('total-amount');
             
             const selectedProducts = Object.entries(products).filter(([id, product]) => product.quantity > 0);
             
@@ -525,103 +546,70 @@
                 createdAt: new Date().toISOString()
             };
 
-            // Gửi đơn hàng đến server
-            fetch('/create-order', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(orderData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Server trả về lỗi!');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    let message = `✅ Đơn hàng đã được tạo thành công!\n\n`;
+            // Giả lập gửi đơn hàng đến server (vì không có server thật)
+            try {
+                // Đánh dấu đã tạo order
+                hasCreatedOrder = true;
+                
+                // Cập nhật UI
+                updateOrderList();
+                document.getElementById('create-btn').disabled = true;
+                document.getElementById('print-btn').disabled = false;
 
-                    let grandTotal = 0;
-                    orderData.products.forEach(product => {
-                        message += `🛒 ${product.name}: ${product.quantity} x ${product.price.toLocaleString('vi-VN')} = ${product.total.toLocaleString('vi-VN')} VND\n`;
-                        grandTotal += product.total;
-                    });
+                let message = `✅ Đơn hàng đã được tạo thành công!\n\n`;
+                let grandTotal = 0;
 
-                    message += `\n💰 Tổng cộng: ${grandTotal.toLocaleString('vi-VN')} VND`;
+                orderData.products.forEach(product => {
+                    message += `🛒 ${product.name}: ${product.quantity} x ${product.price.toLocaleString('vi-VN')} = ${product.total.toLocaleString('vi-VN')} VND\n`;
+                    grandTotal += product.total;
+                });
 
-                    if (orderData.includeLogo) message += `\n🖼️ Đã bao gồm logo`;
-                    if (orderData.includeQR) message += `\n🔳 Đã bao gồm mã QR`;
+                message += `\n💰 Tổng cộng: ${grandTotal.toLocaleString('vi-VN')} VND`;
 
-                    alert(message);
+                if (orderData.includeLogo) message += `\n🖼️ Đã bao gồm logo`;
+                if (orderData.includeQR) message += `\n🔳 Đã bao gồm mã QR`;
 
-                    // Reset trạng thái
-                    Object.keys(products).forEach(id => {
-                        products[id].quantity = 0;
-                        updateDisplay(id);
-                    });
-                    updateOrderList();
-                } else {
-                    alert('❌ Tạo đơn hàng thất bại: ' + (data.error || 'Lỗi không xác định.'));
-                }
-            })
-            .catch(error => {
+                alert(message);
+            } catch (error) {
                 console.error('Lỗi khi tạo đơn hàng:', error);
-                alert('🚨 Đã xảy ra lỗi khi gửi đơn hàng. Vui lòng thử lại.');
-            });
+                alert('🚨 Đã xảy ra lỗi khi tạo đơn hàng. Vui lòng thử lại.');
+            }
         }
 
-
         function printOrder() {
-            const selectedProducts = Object.entries(products).filter(([id, product]) => product.quantity > 0);
-
-            if (selectedProducts.length === 0) {
-                alert('⚠️ Không có đơn hàng nào để in!');
+            if (!hasCreatedOrder) {
+                alert('⚠️ Bạn cần ấn "Create Order" trước khi in!');
                 return;
             }
 
-            const logoCheck = document.getElementById('logo-check').checked;
-            const qrCheck = document.getElementById('qr-check').checked;
+            // Giả lập in đơn hàng (vì không có server thật)
+            try {
+                alert('🖨️ Đơn hàng đã được in thành công! Giao diện sẽ được reset.');
 
-            const orderData = {
-                products: selectedProducts.map(([id, product]) => ({
-                    id,
-                    name: product.name,
-                    price: product.price,
-                    quantity: product.quantity,
-                    total: product.price * product.quantity
-                })),
-                includeLogo: logoCheck,
-                includeQR: qrCheck,
-                printedAt: new Date().toISOString()
-            };
+                // Reset trạng thái
+                hasCreatedOrder = false;
 
-            // Gửi đơn hàng cần in lên server
-            fetch('/print-order', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(orderData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Server trả về lỗi!');
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    alert('🖨️ Đơn hàng đã được gửi đến máy in thành công!');
-                } else {
-                    alert('❌ In đơn hàng thất bại: ' + (data.error || 'Lỗi không xác định.'));
-                }
-            })
-            .catch(error => {
+                // Reset UI
+                Object.keys(products).forEach(id => {
+                    products[id].quantity = 0;
+                    updateDisplay(id);
+                });
+
+                // Reset order list về trạng thái chờ
+                document.getElementById('order-list').innerHTML = '<div class="waiting-order">Please select products and click "Create Order" to see your order</div>';
+                document.getElementById('total-section').style.display = 'none';
+
+                // Uncheck các checkbox logo/qr
+                document.getElementById('logo-check').checked = false;
+                document.getElementById('qr-check').checked = false;
+
+                // Reset buttons
+                document.getElementById('create-btn').disabled = false;
+                document.getElementById('print-btn').disabled = true;
+            } catch (error) {
                 console.error('Lỗi khi in đơn hàng:', error);
                 alert('🚨 Đã xảy ra lỗi khi in đơn hàng. Vui lòng kiểm tra lại.');
-            });
+            }
         }
     </script>
 </body>

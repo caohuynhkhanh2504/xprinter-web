@@ -85,7 +85,9 @@ function createReceiptContent(orderData) {
     content += 'Change'.padEnd(32) + '0'.padStart(10) + '\n\n';
 
     content += ESC.ALIGN_CENTER;
-    content += 'Thank you! See you again!\nPowered by POS365.VN\n\n\n';
+    content += 'Thank you! See you again!\nPowered by POS365.VN\n\n\n\n';
+
+    content += "\n\n\n\n\n\n";
     content += ESC.CUT_PARTIAL;
 
     return content;
@@ -123,36 +125,50 @@ app.post('/create-order', (req, res) => {
 
 app.post('/print-order', (req, res) => {
     if (!hasCreatedOrder) {
-        return res.status(400).json({ success: false, error: 'No order to print. Please create first.' });
+        return res.status(400).json({ 
+            success: false, 
+            error: 'Please create an order first before printing.' 
+        });
     }
 
     if (!fs.existsSync(CONFIG.FILE_PATH)) {
-        return res.status(404).json({ success: false, error: 'Receipt file not found' });
+        return res.status(400).json({ 
+            success: false, 
+            error: 'No receipt file found. Please create an order first.' 
+        });
     }
 
-    const printCommand = `lp -d "${CONFIG.PRINTER_NAME}" -o raw "${CONFIG.FILE_PATH}"`;
+    const printCommand = `lp -d "${CONFIG.PRINTER_NAME}" "${CONFIG.FILE_PATH}"`;
+    console.log('🖨️ Running print command:', printCommand);
 
     exec(printCommand, (error, stdout, stderr) => {
-        console.log('🔧 Print STDOUT:', stdout);
-        console.log('🔧 Print STDERR:', stderr);
-
         if (error) {
-            console.error('❌ Print failed:', error.message);
+            console.error('❌ Exec error:', error);
             return res.status(500).json({ success: false, error: error.message });
         }
 
-        try {
-            fs.unlinkSync(CONFIG.FILE_PATH);
-            hasCreatedOrder = false;
-            console.log('🗑️ Receipt deleted and state reset.');
-        } catch (err) {
-            console.warn('⚠️ Could not delete receipt file:', err.message);
+        if (stderr) {
+            console.warn('⚠️ Exec stderr:', stderr);
         }
 
-        return res.json({ success: true, message: 'Printed successfully and system reset.' });
+        console.log('✅ Print stdout:', stdout);
+
+        try {
+            fs.unlinkSync(CONFIG.FILE_PATH);
+            console.log('🗑️ Receipt file deleted after printing');
+        } catch (delErr) {
+            console.warn('⚠️ Error deleting receipt:', delErr.message);
+        }
+
+        hasCreatedOrder = false;
+        console.log('🔄 Order state reset');
+
+        return res.json({
+            success: true,
+            message: 'Printed successfully and reset state'
+        });
     });
 });
-
 // === Optional debug route ===
 app.get('/receipt', (req, res) => {
     if (fs.existsSync(CONFIG.FILE_PATH)) {

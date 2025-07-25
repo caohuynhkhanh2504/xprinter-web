@@ -64,17 +64,17 @@ function createReceiptContent(orderData) {
     // Header with logo (if enabled)
     content += `${ESC_COMMANDS.RESET}${ESC_COMMANDS.ALIGN_CENTER}\n`;
     
-    if (orderData.includeLogo) {
-        // Try to read logo file, if not exist, skip
-        try {
-            if (fs.existsSync(CONFIG.LOGO_PATH)) {
-                const logoContent = fs.readFileSync(CONFIG.LOGO_PATH, 'utf8');
-                content += logoContent + '\n';
-            }
-        } catch (error) {
-            console.log('Logo file not found, skipping...');
-        }
-    }
+    // if (orderData.includeLogo) {
+    //     // Try to read logo file, if not exist, skip
+    //     try {
+    //         if (fs.existsSync(CONFIG.LOGO_PATH)) {
+    //             const logoContent = fs.readFileSync(CONFIG.LOGO_PATH, 'utf8');
+    //             content += logoContent + '\n';
+    //         }
+    //     } catch (error) {
+    //         console.log('Logo file not found, skipping...');
+    //     }
+    // }
     
     content += 'GO COFFEE\n';
     content += 'Addr: 543/1 Phan Van Tri, Go Vap, HCM\n';
@@ -146,26 +146,17 @@ function createReceiptContent(orderData) {
     content += '\n';
     
     // Footer
-    content += `${ESC_COMMANDS.RESET}${ESC_COMMANDS.ALIGN_CENTER}\n`;
+    content += `${ESC_COMMANDS.ALIGN_CENTER}\n`;
     content += 'Thank you! See you again!\n';
-    content += '\n';
-    content += 'Powered by POS365.VN\n';
-    content += '\n';
-    
-    // QR Code (if enabled)
-    if (orderData.includeQR) {
-        try {
-            if (fs.existsSync(CONFIG.QR_PATH)) {
-                const qrContent = fs.readFileSync(CONFIG.QR_PATH, 'utf8');
-                content += qrContent + '\n';
-            }
-        } catch (error) {
-            console.log('QR file not found, skipping...');
-        }
-    }
-    
-    // Cut command
-    content += `\n\n${ESC_COMMANDS.CUT}\n`;
+    content += '\nPowered by POS365.VN\n';
+
+    // QR code nếu có
+    // if (orderData.includeQR && fs.existsSync(CONFIG.QR_PATH)) {
+    // //    content += fs.readFileSync(CONFIG.QR_PATH, 'utf8') + '\n';
+    // }
+
+    // KHÔNG dùng \n sau CUT – phải là lệnh thô
+    content += ESC_COMMANDS.CUT;
     
     return content;
 }
@@ -187,7 +178,7 @@ app.post('/create-order', (req, res) => {
         const receiptContent = createReceiptContent(orderData);
         
         // Write to file
-        fs.writeFileSync(CONFIG.FILE_PATH, receiptContent, 'utf8');
+        fs.writeFileSync(CONFIG.FILE_PATH, receiptContent, 'binary');
         
         console.log('Receipt created successfully');
         console.log('Order details:', {

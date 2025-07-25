@@ -1,0 +1,33 @@
+{
+  "name": "pos-system",
+  "version": "1.0.0",
+  "description": "POS System for GO COFFEE with thermal printer support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "install-service": "npm install -g pm2 && pm2 start server.js --name pos-system",
+    "service-start": "pm2 start pos-system",
+    "service-stop": "pm2 stop pos-system",
+    "service-restart": "pm2 restart pos-system",
+    "service-status": "pm2 status pos-system"
+  },
+  "keywords": [
+    "pos",
+    "thermal-printer",
+    "receipt",
+    "coffee-shop",
+    "armbian"
+  ],
+  "author": "GO COFFEE",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
